@@ -54,13 +54,13 @@ func NewClient(baseUrl string) *Client {
 }
 
 func (c *Client) Request(ctx context.Context, params IngressParams, input, output any, reqOpts options.RequestOptions) error {
-	return c.do(ctx, makeIngressUrl(params), input, output, requestOptionsToIngressOpts(reqOpts))
+	return c.do(ctx, http.MethodPost, makeIngressUrl(params), input, output, requestOptionsToIngressOpts(reqOpts))
 }
 
 func (c *Client) Send(ctx context.Context, params IngressParams, input any, sendOpts options.SendOptions) Invocation {
 	url := fmt.Sprintf("%s/%s", makeIngressUrl(params), "send")
 	var output Invocation
-	err := c.do(ctx, url, input, &output, sendOptionsToIngressOpts(sendOpts))
+	err := c.do(ctx, http.MethodPost, url, input, &output, sendOptionsToIngressOpts(sendOpts))
 	if err != nil {
 		output.Error = err
 	}
@@ -72,7 +72,7 @@ func (c *Client) Attach(ctx context.Context, params IngressAttachParams, output 
 	if err != nil {
 		return err
 	}
-	return c.do(ctx, fmt.Sprintf("%s/attach", path), nil, output, ingressOpts{})
+	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/attach", path), nil, output, ingressOpts{})
 }
 
 func (c *Client) Output(ctx context.Context, params IngressAttachParams, output any) error {
@@ -80,19 +80,19 @@ func (c *Client) Output(ctx context.Context, params IngressAttachParams, output 
 	if err != nil {
 		return err
 	}
-	return c.do(ctx, fmt.Sprintf("%s/output", path), nil, output, ingressOpts{})
+	return c.do(ctx, http.MethodGet, fmt.Sprintf("%s/output", path), nil, output, ingressOpts{})
 }
 
 func (c *Client) Cancel(ctx context.Context, invocationID string) error {
 	path := fmt.Sprintf("/invocations/%s", invocationID)
-	return c.do(ctx, path, nil, nil, ingressOpts{})
+	return c.do(ctx, http.MethodDelete, path, nil, nil, ingressOpts{})
 }
 
-func (c *Client) do(ctx context.Context, path string, requestData any, responseData any, opts ingressOpts) error {
+func (c *Client) do(ctx context.Context, httpMethod, path string, requestData any, responseData any, opts ingressOpts) error {
 	// marshal the request data if provided
 	var requestBody io.Reader
 	if requestData != nil {
-		byts, err := json.Marshal(requestData)
+		byts, err := json.Marshal(&requestData)
 		if err != nil {
 			return fmt.Errorf("failed to marshal request data: %w", err)
 		}
@@ -104,11 +104,12 @@ func (c *Client) do(ctx context.Context, path string, requestData any, responseD
 	if opts.Delay != 0 {
 		url = fmt.Sprintf("%s?%s=%dms", url, delayQuery, opts.Delay/time.Millisecond)
 	}
-	req, err := http.NewRequest(http.MethodPost, url, requestBody)
+	req, err := http.NewRequest(httpMethod, url, requestBody)
 	if err != nil {
 		return err
 	}
-	req.WithContext(ctx)
+	req = req.WithContext(ctx)
+
 	if opts.IdempotencyKey != "" {
 		req.Header.Set(idempotencyKeyHeader, opts.IdempotencyKey)
 	}
@@ -138,8 +139,15 @@ func (c *Client) do(ctx context.Context, path string, requestData any, responseD
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		var rerr restateError
-		if err = json.Unmarshal(body, &rerr); err != nil {
-			return fmt.Errorf("failed to unmarshal error response: %w: %s", err, bodyStr)
+		if len(body) > 0 {
+			if err = json.Unmarshal(body, &rerr); err != nil {
+				return fmt.Errorf("failed to unmarshal error response: %w: %s", err, bodyStr)
+			}
+		} else {
+			rerr = restateError{
+				Message: bodyStr,
+				Code:    res.StatusCode,
+			}
 		}
 		switch res.StatusCode {
 		case http.StatusNotFound:
@@ -153,7 +161,7 @@ func (c *Client) do(ctx context.Context, path string, requestData any, responseD
 	}
 
 	if responseData != nil {
-		if err = json.Unmarshal(body, responseData); err != nil {
+		if err = json.Unmarshal(body, &responseData); err != nil {
 			return fmt.Errorf("failed to unmarshal response data: %w: %s", err, bodyStr)
 		}
 	}
@@ -177,10 +185,13 @@ func sendOptionsToIngressOpts(sendOpts options.SendOptions) ingressOpts {
 }
 
 func makeIngressUrl(params IngressParams) string {
-	if params.Key == "" {
-		return fmt.Sprintf("/%s/%s", params.Service, params.Method)
-	} else {
+	switch {
+	case params.Key != "":
 		return fmt.Sprintf("/%s/%s/%s", params.Service, params.Key, params.Method)
+	case params.WorkflowID != "":
+		return fmt.Sprintf("/%s/%s/%s", params.Service, params.WorkflowID, params.Method)
+	default:
+		return fmt.Sprintf("/%s/%s", params.Service, params.Method)
 	}
 }
 

@@ -19,9 +19,13 @@ type IngressSendClient[I any] interface {
 }
 
 type IngressInvocationClient[O any] interface {
+	IngressAttachClient[O]
+	Cancel(ctx context.Context) error
+}
+
+type IngressAttachClient[O any] interface {
 	Attach(ctx context.Context) (O, error)
 	Output(ctx context.Context) (O, error)
-	Cancel(ctx context.Context) error
 }
 
 type ingressClient[I any, O any] struct {
@@ -30,6 +34,11 @@ type ingressClient[I any, O any] struct {
 }
 
 type ingressInvocationClient[O any] struct {
+	opts   []options.IngressOption
+	params ingress.IngressAttachParams
+}
+
+type ingressAttachClient[O any] struct {
 	opts   []options.IngressOption
 	params ingress.IngressAttachParams
 }
@@ -113,8 +122,8 @@ func IngressAttachInvocation[O any](invocationID string, opts ...options.Ingress
 	}
 }
 
-func IngressAttachService(service, method, idempotencyKey string, opts ...options.IngressOption) IngressInvocationClient[any] {
-	return ingressInvocationClient[any]{
+func IngressAttachService[O any](service, method, idempotencyKey string, opts ...options.IngressOption) IngressAttachClient[O] {
+	return ingressAttachClient[O]{
 		opts: opts,
 		params: ingress.IngressAttachParams{
 			Service:        service,
@@ -124,8 +133,8 @@ func IngressAttachService(service, method, idempotencyKey string, opts ...option
 	}
 }
 
-func IngressAttachObject(service, key, method, idempotencyKey string, opts ...options.IngressOption) IngressInvocationClient[any] {
-	return ingressInvocationClient[any]{
+func IngressAttachObject[O any](service, key, method, idempotencyKey string, opts ...options.IngressOption) IngressAttachClient[O] {
+	return ingressAttachClient[O]{
 		opts: opts,
 		params: ingress.IngressAttachParams{
 			Service:        service,
@@ -136,8 +145,8 @@ func IngressAttachObject(service, key, method, idempotencyKey string, opts ...op
 	}
 }
 
-func IngressAttachWorkflow(service, workflowID string, opts ...options.IngressOption) IngressInvocationClient[any] {
-	return ingressInvocationClient[any]{
+func IngressAttachWorkflow[O any](service, workflowID string, opts ...options.IngressOption) IngressAttachClient[O] {
+	return ingressAttachClient[O]{
 		opts: opts,
 		params: ingress.IngressAttachParams{
 			Service:    service,
@@ -189,7 +198,7 @@ func (c ingressInvocationClient[O]) Attach(ctx context.Context) (O, error) {
 
 	ic := ingress.NewClient(ingOpts.BaseUrl)
 	var output O
-	err := ic.Attach(ctx, c.params, &output)
+	err := ic.Attach(ctx, c.params, output)
 	if err != nil {
 		return output, err
 	}
@@ -204,13 +213,14 @@ func (c ingressInvocationClient[O]) Output(ctx context.Context) (O, error) {
 
 	ic := ingress.NewClient(ingOpts.BaseUrl)
 	var output O
-	err := ic.Output(ctx, c.params, &output)
+	err := ic.Output(ctx, c.params, output)
 	if err != nil {
 		return output, err
 	}
 	return output, nil
 }
 
+// Cancel attempts to cancel the invocation. This call is made against the Admin API.
 func (c ingressInvocationClient[O]) Cancel(ctx context.Context) error {
 	if c.params.InvocationID == "" {
 		return errors.New("cancel can only be called with an invocation ID")
@@ -222,4 +232,34 @@ func (c ingressInvocationClient[O]) Cancel(ctx context.Context) error {
 
 	ic := ingress.NewClient(ingOpts.BaseUrl)
 	return ic.Cancel(ctx, c.params.InvocationID)
+}
+
+func (c ingressAttachClient[O]) Attach(ctx context.Context) (O, error) {
+	ingOpts := options.IngressOptions{}
+	for _, opt := range c.opts {
+		opt.BeforeIngress(&ingOpts)
+	}
+
+	ic := ingress.NewClient(ingOpts.BaseUrl)
+	var output O
+	err := ic.Attach(ctx, c.params, output)
+	if err != nil {
+		return output, err
+	}
+	return output, nil
+}
+
+func (c ingressAttachClient[O]) Output(ctx context.Context) (O, error) {
+	ingOpts := options.IngressOptions{}
+	for _, opt := range c.opts {
+		opt.BeforeIngress(&ingOpts)
+	}
+
+	ic := ingress.NewClient(ingOpts.BaseUrl)
+	var output O
+	err := ic.Output(ctx, c.params, output)
+	if err != nil {
+		return output, err
+	}
+	return output, nil
 }
