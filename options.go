@@ -1,4 +1,4 @@
-package restate
+package restateIngress
 
 import (
 	"github.com/nrfta/restate-sdk-go-ingress/internal/options"

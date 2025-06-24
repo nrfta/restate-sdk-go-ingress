@@ -1,4 +1,4 @@
-package restate_test
+package restateIngress_test
 
 import (
 	"encoding/json"
