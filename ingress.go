@@ -1,4 +1,4 @@
-package restate
+package restateIngress
 
 import (
 	"context"
