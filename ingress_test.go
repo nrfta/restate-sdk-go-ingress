@@ -72,7 +72,7 @@ func TestServiceSend(t *testing.T) {
 			restateIngress.WithDelay(time.Millisecond),
 		)
 	require.NoError(t, inv.Error)
-	require.Equal(t, invocationId, inv.InvocationId)
+	require.Equal(t, invocationId, inv.Id)
 	require.Equal(t, invocationStatus, inv.Status)
 	m.AssertMethod(t, http.MethodPost)
 	m.AssertPath(t, fmt.Sprintf("/%s/%s/send", myService, myHandler))
@@ -121,7 +121,7 @@ func TestObjectSend(t *testing.T) {
 			restateIngress.WithDelay(time.Millisecond),
 		)
 	require.NoError(t, inv.Error)
-	require.Equal(t, invocationId, inv.InvocationId)
+	require.Equal(t, invocationId, inv.Id)
 	require.Equal(t, invocationStatus, inv.Status)
 	m.AssertMethod(t, http.MethodPost)
 	m.AssertPath(t, fmt.Sprintf("/%s/%s/%s/send", myService, myObjectKey, myHandler))
@@ -170,7 +170,7 @@ func TestWorkflowSend(t *testing.T) {
 			restateIngress.WithDelay(time.Millisecond),
 		)
 	require.NoError(t, inv.Error)
-	require.Equal(t, invocationId, inv.InvocationId)
+	require.Equal(t, invocationId, inv.Id)
 	require.Equal(t, invocationStatus, inv.Status)
 	m.AssertMethod(t, http.MethodPost)
 	m.AssertPath(t, fmt.Sprintf("/%s/%s/%s/send", myService, myWorkflowId, myHandler))

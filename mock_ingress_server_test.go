@@ -46,8 +46,8 @@ func (m *mockIngressServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasSuffix(m.path, "/send") {
 		inv := ingress.Invocation{
-			InvocationId: "inv_1",
-			Status:       "Accepted",
+			Id:     "inv_1",
+			Status: "Accepted",
 		}
 		json.NewEncoder(w).Encode(&inv)
 	} else {
