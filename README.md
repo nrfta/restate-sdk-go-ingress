@@ -110,7 +110,7 @@ output, err := restateIngress.IngressAttachInvocation[*MyOutputStruct](
 	Output(ctx)
 ```
 
-**Cancel and invocation. NOTE: use the admin base URL here.**
+**Cancel an invocation. NOTE: use the admin base URL here.**
 ```go
 err := restateIngress.IngressAttachInvocation[any](
 	invocationId, restateIngress.WithBaseUrl("http://localhost:9080")).
